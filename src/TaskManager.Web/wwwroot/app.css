@@ -72,22 +72,67 @@ h1:focus {
 }
 
 html, body {
-  font-family: ""Segoe UI"", ""IBM Plex Sans"", system-ui, sans-serif;
+  font-family: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
   color: var(--tm-ink);
   background: linear-gradient(180deg, #eef5f4 0%, var(--tm-surface) 220px, #f7fafb 100%);
+}
+
+/* Layout (also in scoped CSS; duplicated here so theme.css always applies it) */
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
 }
 
 .sidebar {
   background: linear-gradient(180deg, #12343a 0%, #0f2430 100%);
 }
 
-.navbar-brand, .nav-link {
+.navbar-brand, .sidebar .nav-link, .sidebar .btn-link {
   color: #e7f2f1 !important;
+  text-decoration: none !important;
 }
 
-.nav-link:hover, .nav-link.active {
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
   background: rgba(255,255,255,.08);
   border-radius: .5rem;
+}
+
+.sidebar .nav-scrollable {
+  height: calc(100vh - 3.5rem);
+  overflow-y: auto;
+}
+
+@media (min-width: 641px) {
+  .page {
+    flex-direction: row;
+  }
+
+  .sidebar {
+    width: 250px;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+  }
+
+  .sidebar .navbar-toggler {
+    display: none;
+  }
+
+  .sidebar .collapse {
+    display: block;
+  }
+
+  main .top-row,
+  main article {
+    padding-left: 2rem !important;
+    padding-right: 1.5rem !important;
+  }
 }
 
 .hero-panel {

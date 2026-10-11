@@ -8,9 +8,13 @@ Legacy desktop app: [rambmario/task-manager](https://github.com/rambmario/task-m
 
 ## Screenshots
 
-| Dashboard | Tasks | Improvements |
-|-----------|-------|--------------|
-| ![Dashboard](docs/images/dashboard.png) | ![Tasks](docs/images/tasks.png) | ![Improvements](docs/images/improvements.png) |
+| Dashboard | Tasks |
+|-----------|-------|
+| ![Dashboard](docs/images/dashboard.png) | ![Tasks](docs/images/tasks.png) |
+
+| Improvements | Time tracking |
+|--------------|---------------|
+| ![Improvements](docs/images/improvements.png) | ![Time tracking](docs/images/time-tracking.png) |
 
 ## Why this rewrite
 

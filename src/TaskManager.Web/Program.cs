@@ -61,9 +61,17 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 app.UseAntiforgery();
 
+app.UseStaticFiles();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Bypass precompressed static-web-asset pipeline (can serve empty app.css under gzip).
+app.MapGet("/theme.css", (IWebHostEnvironment env) =>
+{
+    var path = Path.Combine(env.WebRootPath, "app.css");
+    return Results.File(path, "text/css");
+});
 
 app.MapAdditionalIdentityEndpoints();
 

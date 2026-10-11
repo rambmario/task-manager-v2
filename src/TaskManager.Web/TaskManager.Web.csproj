@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-TaskManager_Web-79078508-af3d-472b-a49b-4df86782e6ae</UserSecretsId>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- Avoid empty gzip bodies for fingerprinted wwwroot CSS in local/demo runs. -->
+    <DisableStaticWebAssetsCompression>true</DisableStaticWebAssetsCompression>
   </PropertyGroup>
 
   <ItemGroup>
