@@ -1,0 +1,95 @@
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using TaskManager.App;
+using TaskManager.App.Data;
+using TaskManager.App.Features.Tasks;
+using TaskManager.Web.Components;
+using TaskManager.Web.Components.Account;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<IdentityRedirectManager>();
+builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = IdentityConstants.ApplicationScheme;
+        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+    })
+    .AddIdentityCookies();
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+builder.Services.AddTaskManagerApp(connectionString);
+builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
+    {
+        options.SignIn.RequireConfirmedAccount = false;
+        options.Password.RequiredLength = 6;
+        options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
+    })
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
+
+builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+
+var app = builder.Build();
+
+await DatabaseSeeder.InitializeAsync(app.Services);
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseMigrationsEndPoint();
+}
+else
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseHsts();
+}
+
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseHttpsRedirection();
+app.UseAntiforgery();
+
+app.MapStaticAssets();
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
+
+app.MapAdditionalIdentityEndpoints();
+
+app.MapGet("/api/tasks/export", async (
+    [FromServices] TaskService taskService,
+    [FromServices] TaskExcelExportService excelExport,
+    string? search,
+    int? companyId,
+    bool onlyOverdue,
+    CancellationToken ct) =>
+{
+    var result = await taskService.SearchAsync(new TaskQuery
+    {
+        Search = search,
+        CompanyId = companyId,
+        OnlyOverdue = onlyOverdue,
+        Page = 1,
+        PageSize = 1000
+    }, ct);
+
+    var bytes = excelExport.Export(result.Items);
+    return Results.File(
+        bytes,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        $"tasks-{DateTime.UtcNow:yyyyMMdd-HHmm}.xlsx");
+}).RequireAuthorization();
+
+app.Run();
+
+public partial class Program;

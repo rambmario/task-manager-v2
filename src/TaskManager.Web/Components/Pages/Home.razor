@@ -1,0 +1,64 @@
+@page "/"
+@using TaskManager.App.Features.Tasks
+@inject TaskService TaskService
+
+<PageTitle>Dashboard</PageTitle>
+
+<section class="hero-panel">
+    <div>
+        <p class="eyebrow">Task Manager v2</p>
+        <h1>Modern Blazor rewrite of a VB.NET WinForms system</h1>
+        <p class="lead">
+            Tasks, time tracking and CAPA-style improvements — rebuilt with .NET 10,
+            EF Core, Identity and a feature-oriented App layer.
+        </p>
+        <div class="hero-actions">
+            <a class="btn btn-primary" href="tasks">Open tasks</a>
+            <a class="btn btn-outline" href="Account/Login">Demo login</a>
+        </div>
+        <p class="muted small">Demo: <code>admin@demo.local</code> / <code>Demo123!</code></p>
+    </div>
+</section>
+
+@if (stats is null)
+{
+    <p class="muted">Loading dashboard…</p>
+}
+else
+{
+    <div class="stat-grid">
+        <article class="stat-card">
+            <span>Total tasks</span>
+            <strong>@stats.TotalTasks</strong>
+        </article>
+        <article class="stat-card">
+            <span>Open</span>
+            <strong>@stats.OpenTasks</strong>
+        </article>
+        <article class="stat-card danger">
+            <span>Overdue</span>
+            <strong>@stats.OverdueTasks</strong>
+        </article>
+        <article class="stat-card warn">
+            <span>High priority</span>
+            <strong>@stats.HighPriorityTasks</strong>
+        </article>
+        <article class="stat-card">
+            <span>Hours logged</span>
+            <strong>@stats.LoggedHours.ToString("0.##")</strong>
+        </article>
+        <article class="stat-card">
+            <span>Open improvements</span>
+            <strong>@stats.OpenImprovements</strong>
+        </article>
+    </div>
+}
+
+@code {
+    private DashboardStats? stats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        stats = await TaskService.GetDashboardAsync();
+    }
+}

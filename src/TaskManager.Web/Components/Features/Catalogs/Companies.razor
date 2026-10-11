@@ -1,0 +1,132 @@
+@page "/companies"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using TaskManager.App.Features.Catalogs
+@using TaskManager.App.Features.Catalogs.Entities
+@inject CompanyService CompanyService
+
+<PageTitle>Companies</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Companies</h1>
+        <p class="muted">Master data migrated from the legacy Empresa module.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="BeginCreate">New company</button>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert">@message</div>
+}
+
+@if (editing is not null)
+{
+    <EditForm Model="editing" OnValidSubmit="SaveAsync" class="panel form-grid">
+        <DataAnnotationsValidator />
+        <div>
+            <label>Code</label>
+            <InputText @bind-Value="editing.Code" class="form-control" />
+        </div>
+        <div>
+            <label>Name</label>
+            <InputText @bind-Value="editing.Name" class="form-control" />
+        </div>
+        <div>
+            <label>Email</label>
+            <InputText @bind-Value="editing.Email" class="form-control" />
+        </div>
+        <div class="checkbox-row">
+            <InputCheckbox @bind-Value="editing.IsActive" />
+            <label>Active</label>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-outline" @onclick="Cancel">Cancel</button>
+        </div>
+    </EditForm>
+}
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Code</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Active</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var company in companies)
+        {
+            <tr>
+                <td>@company.Code</td>
+                <td>@company.Name</td>
+                <td>@company.Email</td>
+                <td>@(company.IsActive ? "Yes" : "No")</td>
+                <td class="row-actions">
+                    <button class="btn btn-sm" @onclick="() => BeginEdit(company)">Edit</button>
+                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(company.Id)">Delete</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<Company> companies = [];
+    private Company? editing;
+    private string? message;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync() => companies = await CompanyService.GetAllAsync();
+
+    private void BeginCreate()
+    {
+        editing = new Company();
+        message = null;
+    }
+
+    private void BeginEdit(Company company)
+    {
+        editing = new Company
+        {
+            Id = company.Id,
+            Code = company.Code,
+            Name = company.Name,
+            Email = company.Email,
+            IsActive = company.IsActive
+        };
+        message = null;
+    }
+
+    private void Cancel() => editing = null;
+
+    private async Task SaveAsync()
+    {
+        if (editing is null) return;
+        if (string.IsNullOrWhiteSpace(editing.Code) || string.IsNullOrWhiteSpace(editing.Name))
+        {
+            message = "Code and name are required.";
+            return;
+        }
+
+        if (editing.Id == 0)
+            await CompanyService.CreateAsync(editing);
+        else
+            await CompanyService.UpdateAsync(editing);
+
+        editing = null;
+        message = "Company saved.";
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        await CompanyService.DeleteAsync(id);
+        message = "Company deleted.";
+        await ReloadAsync();
+    }
+}

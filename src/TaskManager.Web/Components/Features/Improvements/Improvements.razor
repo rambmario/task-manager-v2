@@ -1,0 +1,212 @@
+@page "/improvements"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@using TaskManager.App.Features.Catalogs
+@using TaskManager.App.Features.Improvements
+@using TaskManager.App.Features.Improvements.Entities
+@inject ImprovementService ImprovementService
+@inject CompanyService CompanyService
+@inject ProjectService ProjectService
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Improvements</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Improvements</h1>
+        <p class="muted">CAPA-style module: cause, corrective action, closure cost and action log.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="BeginCreate">New improvement</button>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert">@message</div>
+}
+
+@if (editing is not null)
+{
+    <EditForm Model="editing" OnValidSubmit="SaveAsync" class="panel form-grid">
+        <div class="full">
+            <label>Title</label>
+            <InputText @bind-Value="editing.Title" class="form-control" />
+        </div>
+        <div class="full">
+            <label>Cause</label>
+            <InputTextArea @bind-Value="editing.Cause" class="form-control" />
+        </div>
+        <div class="full">
+            <label>Corrective action</label>
+            <InputTextArea @bind-Value="editing.CorrectiveAction" class="form-control" />
+        </div>
+        <div>
+            <label>Company</label>
+            <InputSelect @bind-Value="companyId" class="form-control">
+                <option value="0">—</option>
+                @foreach (var company in companies)
+                {
+                    <option value="@company.Id">@company.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div>
+            <label>Project</label>
+            <InputSelect @bind-Value="projectId" class="form-control">
+                <option value="0">—</option>
+                @foreach (var project in projects)
+                {
+                    <option value="@project.Id">@project.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div>
+            <label>Status</label>
+            <InputSelect @bind-Value="editing.Status" class="form-control">
+                @foreach (var status in Enum.GetValues<ImprovementStatus>())
+                {
+                    <option value="@status">@status</option>
+                }
+            </InputSelect>
+        </div>
+        <div>
+            <label>Closure cost</label>
+            <InputNumber @bind-Value="editing.ClosureCost" class="form-control" />
+        </div>
+        <div class="full">
+            <label>Add action note</label>
+            <InputText @bind-Value="actionNote" class="form-control" />
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-outline" @onclick="() => editing = null">Cancel</button>
+        </div>
+    </EditForm>
+}
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Title</th>
+            <th>Company</th>
+            <th>Status</th>
+            <th>Opened</th>
+            <th>Cost</th>
+            <th>Actions</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in items)
+        {
+            <tr>
+                <td>
+                    <div>@item.Title</div>
+                    <div class="muted small">@item.Cause</div>
+                </td>
+                <td>@(item.Company?.Name ?? "—")</td>
+                <td>@item.Status</td>
+                <td>@item.OpenedDate.ToString("yyyy-MM-dd")</td>
+                <td>@item.ClosureCost.ToString("0.##")</td>
+                <td>@item.Actions.Count</td>
+                <td class="row-actions">
+                    <button class="btn btn-sm" @onclick="() => BeginEdit(item)">Edit</button>
+                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(item.Id)">Delete</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<Improvement> items = [];
+    private List<TaskManager.App.Features.Catalogs.Entities.Company> companies = [];
+    private List<TaskManager.App.Features.Catalogs.Entities.Project> projects = [];
+    private Improvement? editing;
+    private int companyId;
+    private int projectId;
+    private string? actionNote;
+    private string? message;
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        currentUserId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        companies = await CompanyService.GetAllAsync();
+        projects = await ProjectService.GetAllAsync();
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync() => items = await ImprovementService.GetAllAsync();
+
+    private void BeginCreate()
+    {
+        editing = new Improvement { OwnerUserId = currentUserId };
+        companyId = companies.FirstOrDefault()?.Id ?? 0;
+        projectId = 0;
+        actionNote = null;
+        message = null;
+    }
+
+    private void BeginEdit(Improvement item)
+    {
+        editing = new Improvement
+        {
+            Id = item.Id,
+            Title = item.Title,
+            Cause = item.Cause,
+            CorrectiveAction = item.CorrectiveAction,
+            CompanyId = item.CompanyId,
+            ProjectId = item.ProjectId,
+            Status = item.Status,
+            ClosureCost = item.ClosureCost,
+            OpenedDate = item.OpenedDate,
+            ClosedDate = item.ClosedDate,
+            OwnerUserId = item.OwnerUserId
+        };
+        companyId = item.CompanyId ?? 0;
+        projectId = item.ProjectId ?? 0;
+        actionNote = null;
+        message = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (editing is null) return;
+        if (string.IsNullOrWhiteSpace(editing.Title))
+        {
+            message = "Title is required.";
+            return;
+        }
+
+        editing.CompanyId = companyId == 0 ? null : companyId;
+        editing.ProjectId = projectId == 0 ? null : projectId;
+
+        if (editing.Id == 0)
+            await ImprovementService.CreateAsync(editing);
+        else
+            await ImprovementService.UpdateAsync(editing);
+
+        if (!string.IsNullOrWhiteSpace(actionNote) && editing.Id != 0)
+        {
+            await ImprovementService.AddActionAsync(new ImprovementAction
+            {
+                ImprovementId = editing.Id,
+                Description = actionNote,
+                PerformedByUserId = currentUserId
+            });
+        }
+
+        editing = null;
+        message = "Improvement saved.";
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        await ImprovementService.DeleteAsync(id);
+        message = "Improvement deleted.";
+        await ReloadAsync();
+    }
+}

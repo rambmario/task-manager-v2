@@ -1,0 +1,137 @@
+@page "/time-entries"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@using TaskManager.App.Features.Tasks
+@using TaskManager.App.Features.TimeTracking
+@using TaskManager.App.Features.TimeTracking.Entities
+@inject TimeEntryService TimeEntryService
+@inject TaskService TaskService
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Time entries</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Time tracking</h1>
+        <p class="muted">Hours logged against tasks (legacy Hora_real).</p>
+    </div>
+    <button class="btn btn-primary" @onclick="BeginCreate">Log hours</button>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert">@message</div>
+}
+
+@if (editing is not null)
+{
+    <EditForm Model="editing" OnValidSubmit="SaveAsync" class="panel form-grid">
+        <div class="full">
+            <label>Task</label>
+            <InputSelect @bind-Value="editing.WorkTaskId" class="form-control">
+                @foreach (var task in tasks)
+                {
+                    <option value="@task.Id">@task.Title</option>
+                }
+            </InputSelect>
+        </div>
+        <div>
+            <label>Date</label>
+            <InputDate @bind-Value="editing.WorkDate" class="form-control" />
+        </div>
+        <div>
+            <label>Hours</label>
+            <InputNumber @bind-Value="editing.Hours" class="form-control" />
+        </div>
+        <div class="full">
+            <label>Notes</label>
+            <InputText @bind-Value="editing.Notes" class="form-control" />
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-outline" @onclick="() => editing = null">Cancel</button>
+        </div>
+    </EditForm>
+}
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Task</th>
+            <th>Hours</th>
+            <th>Notes</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var entry in entries)
+        {
+            <tr>
+                <td>@entry.WorkDate.ToString("yyyy-MM-dd")</td>
+                <td>@entry.WorkTask.Title</td>
+                <td>@entry.Hours.ToString("0.##")</td>
+                <td>@entry.Notes</td>
+                <td>
+                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(entry.Id)">Delete</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<TimeEntry> entries = [];
+    private List<TaskManager.App.Features.Tasks.Entities.WorkTask> tasks = [];
+    private TimeEntry? editing;
+    private string? message;
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        currentUserId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var page = await TaskService.SearchAsync(new TaskQuery { Page = 1, PageSize = 100 });
+        tasks = page.Items.ToList();
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync() => entries = await TimeEntryService.GetRecentAsync();
+
+    private void BeginCreate()
+    {
+        editing = new TimeEntry
+        {
+            WorkTaskId = tasks.FirstOrDefault()?.Id ?? 0,
+            UserId = currentUserId ?? string.Empty,
+            WorkDate = DateOnly.FromDateTime(DateTime.Today),
+            Hours = 1
+        };
+        message = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (editing is null) return;
+        try
+        {
+            editing.UserId = currentUserId ?? string.Empty;
+            await TimeEntryService.CreateAsync(editing);
+            editing = null;
+            message = "Time entry saved.";
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        await TimeEntryService.DeleteAsync(id);
+        message = "Time entry deleted.";
+        await ReloadAsync();
+    }
+}

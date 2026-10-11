@@ -1,0 +1,284 @@
+@page "/tasks"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Authorization
+@using TaskManager.App.Features.Catalogs
+@using TaskManager.App.Features.Tasks
+@using TaskManager.App.Features.Tasks.Entities
+@using TaskManager.App.Platform.Paging
+@inject TaskService TaskService
+@inject CompanyService CompanyService
+@inject ProjectService ProjectService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Tasks</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Tasks</h1>
+        <p class="muted">Filters, overdue highlighting and Excel export — the core legacy module.</p>
+    </div>
+    <div class="hero-actions">
+        <button class="btn btn-outline" @onclick="ExportAsync">Export Excel</button>
+        <button class="btn btn-primary" @onclick="BeginCreate">New task</button>
+    </div>
+</div>
+
+<div class="panel filter-bar">
+    <input class="form-control" placeholder="Search…" @bind="query.Search" @bind:event="oninput" />
+    <select class="form-control" @bind="companyFilter">
+        <option value="0">All companies</option>
+        @foreach (var company in companies)
+        {
+            <option value="@company.Id">@company.Name</option>
+        }
+    </select>
+    <select class="form-control" @bind="statusFilter">
+        <option value="">All statuses</option>
+        @foreach (var status in Enum.GetValues<WorkTaskStatus>())
+        {
+            <option value="@status">@status</option>
+        }
+    </select>
+    <label class="checkbox-row">
+        <InputCheckbox @bind-Value="query.OnlyOverdue" />
+        Overdue only
+    </label>
+    <button class="btn btn-primary" @onclick="SearchAsync">Apply</button>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert">@message</div>
+}
+
+@if (editing is not null)
+{
+    <EditForm Model="editing" OnValidSubmit="SaveAsync" class="panel form-grid">
+        <div class="full">
+            <label>Title</label>
+            <InputText @bind-Value="editing.Title" class="form-control" />
+        </div>
+        <div class="full">
+            <label>Description</label>
+            <InputTextArea @bind-Value="editing.Description" class="form-control" />
+        </div>
+        <div>
+            <label>Company</label>
+            <InputSelect @bind-Value="editing.CompanyId" class="form-control" @bind:after="OnCompanyChanged">
+                @foreach (var company in companies)
+                {
+                    <option value="@company.Id">@company.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div>
+            <label>Project</label>
+            <InputSelect @bind-Value="editing.ProjectId" class="form-control">
+                @foreach (var project in filteredProjects)
+                {
+                    <option value="@project.Id">@project.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div>
+            <label>Priority</label>
+            <InputSelect @bind-Value="editing.Priority" class="form-control">
+                @foreach (var priority in Enum.GetValues<TaskPriority>())
+                {
+                    <option value="@priority">@priority</option>
+                }
+            </InputSelect>
+        </div>
+        <div>
+            <label>Status</label>
+            <InputSelect @bind-Value="editing.Status" class="form-control">
+                @foreach (var status in Enum.GetValues<WorkTaskStatus>())
+                {
+                    <option value="@status">@status</option>
+                }
+            </InputSelect>
+        </div>
+        <div>
+            <label>Due date</label>
+            <InputDate @bind-Value="editing.DueDate" class="form-control" />
+        </div>
+        <div>
+            <label>Planned hours</label>
+            <InputNumber @bind-Value="editing.PlannedHours" class="form-control" />
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-outline" @onclick="Cancel">Cancel</button>
+        </div>
+    </EditForm>
+}
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Title</th>
+            <th>Company</th>
+            <th>Project</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Due</th>
+            <th>Hours</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (result is not null)
+        {
+            @foreach (var task in result.Items)
+            {
+                var overdue = task.DueDate is not null
+                    && task.DueDate < DateOnly.FromDateTime(DateTime.Today)
+                    && task.Status is not (WorkTaskStatus.Done or WorkTaskStatus.Cancelled);
+                <tr class="@(overdue ? "row-overdue" : null)">
+                    <td>@task.Title</td>
+                    <td>@task.Company.Name</td>
+                    <td>@task.Project.Name</td>
+                    <td><span class="badge priority-@task.Priority.ToString().ToLowerInvariant()">@task.Priority</span></td>
+                    <td>@task.Status</td>
+                    <td>@(task.DueDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                    <td>@task.ActualHours.ToString("0.##") / @task.PlannedHours.ToString("0.##")</td>
+                    <td class="row-actions">
+                        <button class="btn btn-sm" @onclick="() => BeginEdit(task)">Edit</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(task.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        }
+    </tbody>
+</table>
+
+@if (result is not null)
+{
+    <div class="pager">
+        <button class="btn btn-sm" disabled="@(result.Page <= 1)" @onclick="() => ChangePage(-1)">Prev</button>
+        <span>Page @result.Page / @Math.Max(result.TotalPages, 1) · @result.TotalCount items</span>
+        <button class="btn btn-sm" disabled="@(result.Page >= result.TotalPages)" @onclick="() => ChangePage(1)">Next</button>
+    </div>
+}
+
+@code {
+    private readonly TaskQuery query = new();
+    private PagedResult<WorkTask>? result;
+    private List<TaskManager.App.Features.Catalogs.Entities.Company> companies = [];
+    private List<TaskManager.App.Features.Catalogs.Entities.Project> projects = [];
+    private WorkTask? editing;
+    private string? message;
+    private string? currentUserId;
+    private int companyFilter;
+    private string statusFilter = "";
+
+    private IEnumerable<TaskManager.App.Features.Catalogs.Entities.Project> filteredProjects =>
+        editing is null ? projects : projects.Where(p => p.CompanyId == editing.CompanyId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        currentUserId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        companies = await CompanyService.GetAllAsync();
+        projects = await ProjectService.GetAllAsync();
+        await SearchAsync();
+    }
+
+    private async Task SearchAsync()
+    {
+        query.CompanyId = companyFilter == 0 ? null : companyFilter;
+        query.Status = string.IsNullOrEmpty(statusFilter) ? null : Enum.Parse<WorkTaskStatus>(statusFilter);
+        result = await TaskService.SearchAsync(query);
+    }
+
+    private async Task ChangePage(int delta)
+    {
+        query.Page += delta;
+        await SearchAsync();
+    }
+
+    private void BeginCreate()
+    {
+        var companyId = companies.FirstOrDefault()?.Id ?? 0;
+        editing = new WorkTask
+        {
+            CompanyId = companyId,
+            ProjectId = projects.FirstOrDefault(p => p.CompanyId == companyId)?.Id ?? 0,
+            AssignedUserId = currentUserId,
+            RequestedDate = DateOnly.FromDateTime(DateTime.Today),
+            DueDate = DateOnly.FromDateTime(DateTime.Today.AddDays(7))
+        };
+        message = null;
+    }
+
+    private void BeginEdit(WorkTask task)
+    {
+        editing = new WorkTask
+        {
+            Id = task.Id,
+            Title = task.Title,
+            Description = task.Description,
+            CompanyId = task.CompanyId,
+            ProjectId = task.ProjectId,
+            SubProjectId = task.SubProjectId,
+            AssignedUserId = task.AssignedUserId,
+            Priority = task.Priority,
+            Status = task.Status,
+            RequestedDate = task.RequestedDate,
+            DueDate = task.DueDate,
+            CompletedDate = task.CompletedDate,
+            PlannedHours = task.PlannedHours,
+            ActualHours = task.ActualHours,
+            CreatedAtUtc = task.CreatedAtUtc
+        };
+        message = null;
+    }
+
+    private void Cancel() => editing = null;
+
+    private void OnCompanyChanged()
+    {
+        if (editing is null) return;
+        editing.ProjectId = filteredProjects.FirstOrDefault()?.Id ?? 0;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (editing is null) return;
+        if (string.IsNullOrWhiteSpace(editing.Title) || editing.CompanyId == 0 || editing.ProjectId == 0)
+        {
+            message = "Title, company and project are required.";
+            return;
+        }
+
+        if (editing.Id == 0)
+            await TaskService.CreateAsync(editing);
+        else
+            await TaskService.UpdateAsync(editing);
+
+        editing = null;
+        message = "Task saved.";
+        await SearchAsync();
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        await TaskService.DeleteAsync(id);
+        message = "Task deleted.";
+        await SearchAsync();
+    }
+
+    private Task ExportAsync()
+    {
+        var url = Nav.GetUriWithQueryParameters("/api/tasks/export", new Dictionary<string, object?>
+        {
+            ["search"] = query.Search,
+            ["companyId"] = query.CompanyId,
+            ["onlyOverdue"] = query.OnlyOverdue
+        });
+        Nav.NavigateTo(url, forceLoad: true);
+        return Task.CompletedTask;
+    }
+}
