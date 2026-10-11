@@ -1,0 +1,2 @@
+src/TaskManager.Web/wwwroot/lib/** linguist-vendored
+*.razor linguist-language=C#
