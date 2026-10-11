@@ -77,7 +77,7 @@ html, body {
   background: linear-gradient(180deg, #eef5f4 0%, var(--tm-surface) 220px, #f7fafb 100%);
 }
 
-/* Layout (also in scoped CSS; duplicated here so theme.css always applies it) */
+/* Shell layout + sidebar (kept in theme.css — scoped bundle can fail under gzip) */
 .page {
   position: relative;
   display: flex;
@@ -92,20 +92,79 @@ main {
   background: linear-gradient(180deg, #12343a 0%, #0f2430 100%);
 }
 
-.navbar-brand, .sidebar .nav-link, .sidebar .btn-link {
+.sidebar .top-row {
+  min-height: 3.5rem;
+  background-color: rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sidebar .navbar-brand {
+  font-size: 1.1rem;
+  font-weight: 600;
   color: #e7f2f1 !important;
   text-decoration: none !important;
 }
 
-.sidebar .nav-link:hover,
-.sidebar .nav-link.active {
-  background: rgba(255,255,255,.08);
-  border-radius: .5rem;
+.sidebar .navbar-toggler {
+  appearance: none;
+  cursor: pointer;
+  width: 3.5rem;
+  height: 2.5rem;
+  position: absolute;
+  top: 0.5rem;
+  right: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.75rem rgba(255, 255, 255, 0.1);
 }
 
 .sidebar .nav-scrollable {
-  height: calc(100vh - 3.5rem);
-  overflow-y: auto;
+  display: none;
+}
+
+.sidebar .navbar-toggler:checked ~ .nav-scrollable {
+  display: block;
+}
+
+.sidebar .nav-item {
+  font-size: 0.9rem;
+  padding-bottom: 0.35rem;
+}
+
+.sidebar .nav-item:first-of-type {
+  padding-top: 1rem;
+}
+
+.sidebar .nav-item:last-of-type {
+  padding-bottom: 1rem;
+}
+
+.sidebar .nav-link,
+.sidebar button.nav-link {
+  color: #d7e4e2 !important;
+  background: none;
+  border: none;
+  border-radius: 0.5rem;
+  height: 2.75rem;
+  display: flex;
+  align-items: center;
+  line-height: 1.2;
+  width: 100%;
+  text-align: left;
+  text-decoration: none !important;
+  padding: 0.5rem 0.85rem;
+  cursor: pointer;
+}
+
+.sidebar .nav-link:hover,
+.sidebar button.nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff !important;
+}
+
+.sidebar .nav-link.active {
+  background-color: rgba(255, 255, 255, 0.18);
+  color: #fff !important;
+  font-weight: 600;
 }
 
 @media (min-width: 641px) {
@@ -124,11 +183,13 @@ main {
     display: none;
   }
 
-  .sidebar .collapse {
+  .sidebar .nav-scrollable {
     display: block;
+    height: calc(100vh - 3.5rem);
+    overflow-y: auto;
   }
 
-  main .top-row,
+  main > .top-row,
   main article {
     padding-left: 2rem !important;
     padding-right: 1.5rem !important;

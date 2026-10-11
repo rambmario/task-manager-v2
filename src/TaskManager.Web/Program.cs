@@ -66,11 +66,19 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-// Bypass precompressed static-web-asset pipeline (can serve empty app.css under gzip).
+// Reliable CSS endpoints — fingerprinted/gzipped static-web-assets can return empty bodies in Debug.
 app.MapGet("/theme.css", (IWebHostEnvironment env) =>
 {
     var path = Path.Combine(env.WebRootPath, "app.css");
     return Results.File(path, "text/css");
+});
+
+app.MapGet("/app.styles.css", (IWebHostEnvironment env) =>
+{
+    var path = Path.Combine(env.WebRootPath, "app.styles.css");
+    return File.Exists(path)
+        ? Results.File(path, "text/css")
+        : Results.NotFound();
 });
 
 app.MapAdditionalIdentityEndpoints();

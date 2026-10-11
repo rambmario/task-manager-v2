@@ -54,10 +54,12 @@ Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/download)
 ```bash
 git clone https://github.com/rambmario/task-manager-v2.git
 cd task-manager-v2
-dotnet run --project src/TaskManager.Web
+dotnet run --project src/TaskManager.Web --launch-profile http
 ```
 
-Open the HTTPS/HTTP URL from the console (see `launchSettings.json`, typically `https://localhost:7108`).
+Open **http://localhost:5249** (or the URL printed in the console). Use `--launch-profile https` for TLS (`https://localhost:7108`).
+
+If build fails with “file is being used by another process”, stop the previous `TaskManager.Web` / `dotnet run` instance and retry.
 
 ```bash
 dotnet test

@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 **/Data/app.db
 **/Data/app.db-*
 
+
+# Generated scoped CSS copy for /app.styles.css
+src/TaskManager.Web/wwwroot/app.styles.css

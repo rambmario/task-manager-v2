@@ -6,8 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-TaskManager_Web-79078508-af3d-472b-a49b-4df86782e6ae</UserSecretsId>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
-    <!-- Avoid empty gzip bodies for fingerprinted wwwroot CSS in local/demo runs. -->
+    <!-- Precompressed static assets can serve empty CSS under gzip in Debug. -->
     <DisableStaticWebAssetsCompression>true</DisableStaticWebAssetsCompression>
+    <EnableStaticWebAssetCompressionInDevelopment>false</EnableStaticWebAssetCompressionInDevelopment>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,5 +22,13 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" PrivateAssets="all" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.12" PrivateAssets="all" />
   </ItemGroup>
+
+  <!-- Serve scoped CSS via /app.styles.css without the fingerprinted gzip pipeline. -->
+  <Target Name="CopyScopedCssToWwwroot" AfterTargets="BundleScopedCssFiles">
+    <Copy SourceFiles="$(IntermediateOutputPath)scopedcss\bundle\$(MSBuildProjectName).styles.css"
+          DestinationFiles="$(MSBuildProjectDirectory)\wwwroot\app.styles.css"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(IntermediateOutputPath)scopedcss\bundle\$(MSBuildProjectName).styles.css')" />
+  </Target>
 
 </Project>
