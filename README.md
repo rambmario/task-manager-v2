@@ -1,8 +1,16 @@
 # Task Manager v2
 
+[![CI](https://github.com/rambmario/task-manager-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/rambmario/task-manager-v2/actions/workflows/ci.yml)
+
 Modern rewrite of a **VB.NET WinForms + SQL Server** task / time-tracking / improvement system, rebuilt as a **.NET 10 Blazor Web App** for recruiters and portfolio review.
 
 Legacy desktop app: [rambmario/task-manager](https://github.com/rambmario/task-manager)
+
+## Screenshots
+
+| Dashboard | Tasks | Improvements |
+|-----------|-------|--------------|
+| ![Dashboard](docs/images/dashboard.png) | ![Tasks](docs/images/tasks.png) | ![Improvements](docs/images/improvements.png) |
 
 ## Why this rewrite
 
