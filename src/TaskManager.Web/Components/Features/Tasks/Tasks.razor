@@ -2,13 +2,17 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Primitives
 @using TaskManager.App.Features.Catalogs
+@using TaskManager.App.Features.Identity
 @using TaskManager.App.Features.Tasks
 @using TaskManager.App.Features.Tasks.Entities
 @using TaskManager.App.Platform.Paging
 @inject TaskService TaskService
 @inject CompanyService CompanyService
 @inject ProjectService ProjectService
+@inject UserDirectoryService UserDirectory
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
 
@@ -17,7 +21,7 @@
 <div class="page-header">
     <div>
         <h1>Tasks</h1>
-        <p class="muted">Filters, overdue highlighting and Excel export — the core legacy module.</p>
+        <p class="muted">Filters, sortable columns, assignee, overdue highlighting and Excel export.</p>
     </div>
     <div class="hero-actions">
         <button class="btn btn-outline" @onclick="ExportAsync">Export Excel</button>
@@ -25,8 +29,12 @@
     </div>
 </div>
 
-<div class="panel filter-bar">
-    <input class="form-control" placeholder="Search…" @bind="query.Search" @bind:event="oninput" />
+<div class="panel filter-bar filter-bar-wide">
+    <input class="form-control"
+           placeholder="Search… (Enter)"
+           @bind="query.Search"
+           @bind:event="oninput"
+           @onkeydown="OnSearchKeyDownAsync" />
     <select class="form-control" @bind="companyFilter">
         <option value="0">All companies</option>
         @foreach (var company in companies)
@@ -41,11 +49,31 @@
             <option value="@status">@status</option>
         }
     </select>
+    <select class="form-control" @bind="assigneeFilter">
+        <option value="">All assignees</option>
+        @if (!string.IsNullOrEmpty(currentUserId))
+        {
+            <option value="@currentUserId">My tasks</option>
+        }
+        @foreach (var user in users.Where(u => u.Id != currentUserId))
+        {
+            <option value="@user.Id">@user.DisplayLabel</option>
+        }
+    </select>
+    <label class="checkbox-row">
+        <InputCheckbox @bind-Value="query.OpenOnly" />
+        Open
+    </label>
+    <label class="checkbox-row">
+        <InputCheckbox @bind-Value="query.HighPriorityOnly" />
+        High priority
+    </label>
     <label class="checkbox-row">
         <InputCheckbox @bind-Value="query.OnlyOverdue" />
-        Overdue only
+        Overdue
     </label>
-    <button class="btn btn-primary" @onclick="SearchAsync">Apply</button>
+    <button class="btn btn-primary" @onclick="ApplyFiltersAsync">Apply</button>
+    <button type="button" class="btn btn-outline" @onclick="ClearFiltersAsync">Clear</button>
 </div>
 
 @if (!string.IsNullOrEmpty(message))
@@ -79,6 +107,16 @@
                 @foreach (var project in filteredProjects)
                 {
                     <option value="@project.Id">@project.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div>
+            <label>Assigned to</label>
+            <InputSelect @bind-Value="editing.AssignedUserId" class="form-control">
+                <option value="">Unassigned</option>
+                @foreach (var user in users)
+                {
+                    <option value="@user.Id">@user.DisplayLabel</option>
                 }
             </InputSelect>
         </div>
@@ -118,13 +156,14 @@
 <table class="data-table">
     <thead>
         <tr>
-            <th>Title</th>
-            <th>Company</th>
-            <th>Project</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Due</th>
-            <th>Hours</th>
+            <th><button type="button" class="sort-btn @SortClass(TaskSortColumn.Title)" @onclick="() => SortByAsync(TaskSortColumn.Title)">Title @SortMark(TaskSortColumn.Title)</button></th>
+            <th><button type="button" class="sort-btn @SortClass(TaskSortColumn.Company)" @onclick="() => SortByAsync(TaskSortColumn.Company)">Company @SortMark(TaskSortColumn.Company)</button></th>
+            <th><button type="button" class="sort-btn @SortClass(TaskSortColumn.Project)" @onclick="() => SortByAsync(TaskSortColumn.Project)">Project @SortMark(TaskSortColumn.Project)</button></th>
+            <th><button type="button" class="sort-btn @SortClass(TaskSortColumn.Assignee)" @onclick="() => SortByAsync(TaskSortColumn.Assignee)">Assignee @SortMark(TaskSortColumn.Assignee)</button></th>
+            <th><button type="button" class="sort-btn @SortClass(TaskSortColumn.Priority)" @onclick="() => SortByAsync(TaskSortColumn.Priority)">Priority @SortMark(TaskSortColumn.Priority)</button></th>
+            <th><button type="button" class="sort-btn @SortClass(TaskSortColumn.Status)" @onclick="() => SortByAsync(TaskSortColumn.Status)">Status @SortMark(TaskSortColumn.Status)</button></th>
+            <th><button type="button" class="sort-btn @SortClass(TaskSortColumn.DueDate)" @onclick="() => SortByAsync(TaskSortColumn.DueDate)">Due @SortMark(TaskSortColumn.DueDate)</button></th>
+            <th><button type="button" class="sort-btn @SortClass(TaskSortColumn.Hours)" @onclick="() => SortByAsync(TaskSortColumn.Hours)">Hours @SortMark(TaskSortColumn.Hours)</button></th>
             <th></th>
         </tr>
     </thead>
@@ -140,6 +179,7 @@
                     <td>@task.Title</td>
                     <td>@task.Company.Name</td>
                     <td>@task.Project.Name</td>
+                    <td>@AssigneeLabel(task.AssignedUserId)</td>
                     <td><span class="badge priority-@task.Priority.ToString().ToLowerInvariant()">@task.Priority</span></td>
                     <td>@task.Status</td>
                     <td>@(task.DueDate?.ToString("yyyy-MM-dd") ?? "—")</td>
@@ -168,11 +208,14 @@
     private PagedResult<WorkTask>? result;
     private List<TaskManager.App.Features.Catalogs.Entities.Company> companies = [];
     private List<TaskManager.App.Features.Catalogs.Entities.Project> projects = [];
+    private List<UserOption> users = [];
+    private Dictionary<string, string> userLabels = new();
     private WorkTask? editing;
     private string? message;
     private string? currentUserId;
     private int companyFilter;
     private string statusFilter = "";
+    private string assigneeFilter = "";
 
     private IEnumerable<TaskManager.App.Features.Catalogs.Entities.Project> filteredProjects =>
         editing is null ? projects : projects.Where(p => p.CompanyId == editing.CompanyId);
@@ -183,13 +226,108 @@
         currentUserId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         companies = await CompanyService.GetAllAsync();
         projects = await ProjectService.GetAllAsync();
+        users = await UserDirectory.GetAssignableUsersAsync();
+        userLabels = users.ToDictionary(u => u.Id, u => u.DisplayLabel);
+
+        ApplyQueryStringFilters();
         await SearchAsync();
     }
 
+    private void ApplyQueryStringFilters()
+    {
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        var qs = QueryHelpers.ParseQuery(uri.Query);
+
+        query.OnlyOverdue = IsTruthy(qs, "overdue");
+        query.OpenOnly = IsTruthy(qs, "open");
+        query.HighPriorityOnly = IsTruthy(qs, "highPriority");
+        if (IsTruthy(qs, "mine") && !string.IsNullOrEmpty(currentUserId))
+            assigneeFilter = currentUserId;
+    }
+
+    private static bool IsTruthy(Dictionary<string, StringValues> qs, string key)
+    {
+        if (!qs.TryGetValue(key, out var values))
+            return false;
+
+        var raw = values.ToString().Trim();
+        return raw.Equals("true", StringComparison.OrdinalIgnoreCase)
+               || raw.Equals("1", StringComparison.OrdinalIgnoreCase)
+               || raw.Equals("yes", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        query.Page = 1;
+        await SearchAsync();
+    }
+
+    private async Task OnSearchKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await ApplyFiltersAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        query.Search = null;
+        query.CompanyId = null;
+        query.ProjectId = null;
+        query.Status = null;
+        query.Priority = null;
+        query.AssignedUserId = null;
+        query.OpenOnly = false;
+        query.HighPriorityOnly = false;
+        query.OnlyOverdue = false;
+        query.SortBy = TaskSortColumn.Default;
+        query.SortDescending = false;
+        query.Page = 1;
+
+        companyFilter = 0;
+        statusFilter = "";
+        assigneeFilter = "";
+
+        if (!string.IsNullOrEmpty(Nav.ToAbsoluteUri(Nav.Uri).Query))
+            Nav.NavigateTo("tasks", replace: true);
+
+        await SearchAsync();
+    }
+
+    private async Task SortByAsync(TaskSortColumn column)
+    {
+        if (query.SortBy == column)
+            query.SortDescending = !query.SortDescending;
+        else
+        {
+            query.SortBy = column;
+            query.SortDescending = column is TaskSortColumn.Priority or TaskSortColumn.Hours or TaskSortColumn.DueDate;
+        }
+
+        query.Page = 1;
+        await SearchAsync();
+    }
+
+    private string SortClass(TaskSortColumn column) =>
+        query.SortBy == column ? "is-active" : string.Empty;
+
+    private string SortMark(TaskSortColumn column)
+    {
+        if (query.SortBy != column)
+            return "↕";
+        return query.SortDescending ? "↓" : "↑";
+    }
+
+    private string AssigneeLabel(string? userId) =>
+        string.IsNullOrWhiteSpace(userId)
+            ? "—"
+            : userLabels.TryGetValue(userId, out var label) ? label : "Unknown";
+
     private async Task SearchAsync()
     {
+        query.Page = Math.Max(1, query.Page);
         query.CompanyId = companyFilter == 0 ? null : companyFilter;
         query.Status = string.IsNullOrEmpty(statusFilter) ? null : Enum.Parse<WorkTaskStatus>(statusFilter);
+        query.AssignedUserId = string.IsNullOrEmpty(assigneeFilter) ? null : assigneeFilter;
         result = await TaskService.SearchAsync(query);
     }
 
@@ -253,6 +391,9 @@
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(editing.AssignedUserId))
+            editing.AssignedUserId = null;
+
         if (editing.Id == 0)
             await TaskService.CreateAsync(editing);
         else
@@ -276,7 +417,10 @@
         {
             ["search"] = query.Search,
             ["companyId"] = query.CompanyId,
-            ["onlyOverdue"] = query.OnlyOverdue
+            ["assignedUserId"] = query.AssignedUserId,
+            ["onlyOverdue"] = query.OnlyOverdue,
+            ["openOnly"] = query.OpenOnly,
+            ["highPriorityOnly"] = query.HighPriorityOnly
         });
         Nav.NavigateTo(url, forceLoad: true);
         return Task.CompletedTask;

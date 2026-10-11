@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using TaskManager.App;
 using TaskManager.App.Data;
+using TaskManager.App.Features.Identity;
 using TaskManager.App.Features.Tasks;
 using TaskManager.Web.Components;
 using TaskManager.Web.Components.Account;
@@ -69,21 +70,29 @@ app.MapAdditionalIdentityEndpoints();
 app.MapGet("/api/tasks/export", async (
     [FromServices] TaskService taskService,
     [FromServices] TaskExcelExportService excelExport,
+    [FromServices] UserDirectoryService users,
     string? search,
     int? companyId,
+    string? assignedUserId,
     bool onlyOverdue,
+    bool openOnly,
+    bool highPriorityOnly,
     CancellationToken ct) =>
 {
     var result = await taskService.SearchAsync(new TaskQuery
     {
         Search = search,
         CompanyId = companyId,
+        AssignedUserId = assignedUserId,
         OnlyOverdue = onlyOverdue,
+        OpenOnly = openOnly,
+        HighPriorityOnly = highPriorityOnly,
         Page = 1,
         PageSize = 1000
     }, ct);
 
-    var bytes = excelExport.Export(result.Items);
+    var names = await users.GetDisplayMapAsync(result.Items.Select(t => t.AssignedUserId), ct);
+    var bytes = excelExport.Export(result.Items, names);
     return Results.File(
         bytes,
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

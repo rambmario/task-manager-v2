@@ -4,7 +4,7 @@
 |------------------------------|---------------------|
 | `Empresa` | `Company` / Catalogs |
 | `PROYECTO` | `Project` / Catalogs |
-| `Sub_proyecto` | `SubProject` / Catalogs |
+| `Sub_proyecto` | `SubProject` / Catalogs (`/sub-projects`) |
 | `TAREA` | `WorkTask` / Tasks |
 | `Estado_tarea` / prioridad | `WorkTaskStatus` / `TaskPriority` enums |
 | `Hora_real` | `TimeEntry` / TimeTracking |

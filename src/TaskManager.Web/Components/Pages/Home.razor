@@ -1,6 +1,10 @@
 @page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@using TaskManager.App.Features.Identity
 @using TaskManager.App.Features.Tasks
+@using TaskManager.App.Features.Tasks.Entities
 @inject TaskService TaskService
+@inject UserDirectoryService UserDirectory
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -14,9 +18,19 @@
         </p>
         <div class="hero-actions">
             <a class="btn btn-primary" href="tasks">Open tasks</a>
-            <a class="btn btn-outline" href="Account/Login">Demo login</a>
+            <AuthorizeView>
+                <Authorized>
+                    <a class="btn btn-outline" href="tasks?mine=true">My tasks</a>
+                </Authorized>
+                <NotAuthorized>
+                    <a class="btn btn-outline" href="Account/Login">Demo login</a>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
-        <p class="muted small">Demo: <code>admin@demo.local</code> / <code>Demo123!</code></p>
+        <p class="muted small">
+            Demo users (password <code>Demo123!</code>):
+            <code>admin@demo.local</code> · <code>pm@demo.local</code> · <code>dev@demo.local</code>
+        </p>
     </div>
 </section>
 
@@ -27,38 +41,100 @@
 else
 {
     <div class="stat-grid">
-        <article class="stat-card">
+        <a class="stat-card link-card" href="tasks">
             <span>Total tasks</span>
             <strong>@stats.TotalTasks</strong>
-        </article>
-        <article class="stat-card">
+        </a>
+        <a class="stat-card link-card" href="tasks?open=true">
             <span>Open</span>
             <strong>@stats.OpenTasks</strong>
-        </article>
-        <article class="stat-card danger">
+        </a>
+        <a class="stat-card link-card danger" href="tasks?overdue=true">
             <span>Overdue</span>
             <strong>@stats.OverdueTasks</strong>
-        </article>
-        <article class="stat-card warn">
+        </a>
+        <a class="stat-card link-card warn" href="tasks?highPriority=true">
             <span>High priority</span>
             <strong>@stats.HighPriorityTasks</strong>
-        </article>
-        <article class="stat-card">
+        </a>
+        <a class="stat-card link-card" href="time-entries">
             <span>Hours logged</span>
             <strong>@stats.LoggedHours.ToString("0.##")</strong>
-        </article>
-        <article class="stat-card">
+        </a>
+        <a class="stat-card link-card" href="improvements">
             <span>Open improvements</span>
             <strong>@stats.OpenImprovements</strong>
-        </article>
+        </a>
     </div>
+
+    <section class="panel next-up">
+        <div class="page-header" style="margin-bottom:.75rem">
+            <div>
+                <h2>Next up</h2>
+                <p class="muted small">Ordered: overdue first, then priority, then due date.</p>
+            </div>
+            <a class="btn btn-sm btn-outline" href="tasks">View all</a>
+        </div>
+
+        @if (nextUp.Count == 0)
+        {
+            <p class="muted">No open tasks.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Project</th>
+                        <th>Assignee</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Due</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var task in nextUp)
+                    {
+                        var overdue = task.DueDate is not null
+                            && task.DueDate < DateOnly.FromDateTime(DateTime.Today)
+                            && task.Status is not (WorkTaskStatus.Done or WorkTaskStatus.Cancelled);
+                        <tr class="@(overdue ? "row-overdue" : null)">
+                            <td>
+                                <a href="tasks">@task.Title</a>
+                                @if (overdue)
+                                {
+                                    <span class="badge priority-critical">Overdue</span>
+                                }
+                            </td>
+                            <td>@task.Project.Name</td>
+                            <td>@AssigneeLabel(task.AssignedUserId)</td>
+                            <td><span class="badge priority-@task.Priority.ToString().ToLowerInvariant()">@task.Priority</span></td>
+                            <td>@task.Status</td>
+                            <td>@(task.DueDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
 }
 
 @code {
     private DashboardStats? stats;
+    private List<WorkTask> nextUp = [];
+    private Dictionary<string, string> userLabels = new();
 
     protected override async Task OnInitializedAsync()
     {
         stats = await TaskService.GetDashboardAsync();
+        nextUp = await TaskService.GetNextUpAsync(8);
+        var map = await UserDirectory.GetDisplayMapAsync(nextUp.Select(t => t.AssignedUserId));
+        userLabels = map.ToDictionary(kv => kv.Key, kv => kv.Value);
     }
+
+    private string AssigneeLabel(string? userId) =>
+        string.IsNullOrWhiteSpace(userId)
+            ? "—"
+            : userLabels.TryGetValue(userId, out var label) ? label : "Unknown";
 }

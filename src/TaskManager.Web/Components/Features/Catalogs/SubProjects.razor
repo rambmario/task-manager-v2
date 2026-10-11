@@ -1,0 +1,148 @@
+@page "/sub-projects"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using TaskManager.App.Features.Catalogs
+@using TaskManager.App.Features.Catalogs.Entities
+@inject SubProjectService SubProjectService
+@inject ProjectService ProjectService
+
+<PageTitle>Sub-projects</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Sub-projects</h1>
+        <p class="muted">Legacy Sub_proyecto — work packages under each project.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="BeginCreate">New sub-project</button>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert">@message</div>
+}
+
+@if (editing is not null)
+{
+    <EditForm Model="editing" OnValidSubmit="SaveAsync" class="panel form-grid">
+        <div>
+            <label>Project</label>
+            <InputSelect @bind-Value="editing.ProjectId" class="form-control">
+                <option value="0">Select…</option>
+                @foreach (var project in projects)
+                {
+                    <option value="@project.Id">@project.Company.Name — @project.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div>
+            <label>Name</label>
+            <InputText @bind-Value="editing.Name" class="form-control" />
+        </div>
+        <div>
+            <label>Planned hours</label>
+            <InputNumber @bind-Value="editing.PlannedHours" class="form-control" />
+        </div>
+        <div class="checkbox-row">
+            <InputCheckbox @bind-Value="editing.IsActive" />
+            <label>Active</label>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-outline" @onclick="() => editing = null">Cancel</button>
+        </div>
+    </EditForm>
+}
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Company</th>
+            <th>Project</th>
+            <th>Sub-project</th>
+            <th>Planned hours</th>
+            <th>Active</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in items)
+        {
+            <tr>
+                <td>@item.Project.Company.Name</td>
+                <td>@item.Project.Name</td>
+                <td>@item.Name</td>
+                <td>@item.PlannedHours.ToString("0.##")</td>
+                <td>@(item.IsActive ? "Yes" : "No")</td>
+                <td class="row-actions">
+                    <button class="btn btn-sm" @onclick="() => BeginEdit(item)">Edit</button>
+                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(item.Id)">Delete</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<SubProject> items = [];
+    private List<Project> projects = [];
+    private SubProject? editing;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        projects = await ProjectService.GetAllAsync();
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync() => items = await SubProjectService.GetAllAsync();
+
+    private void BeginCreate()
+    {
+        editing = new SubProject
+        {
+            ProjectId = projects.FirstOrDefault()?.Id ?? 0,
+            IsActive = true,
+            PlannedHours = 8
+        };
+        message = null;
+    }
+
+    private void BeginEdit(SubProject item)
+    {
+        editing = new SubProject
+        {
+            Id = item.Id,
+            ProjectId = item.ProjectId,
+            Name = item.Name,
+            PlannedHours = item.PlannedHours,
+            IsActive = item.IsActive
+        };
+        message = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (editing is null) return;
+        if (editing.ProjectId == 0 || string.IsNullOrWhiteSpace(editing.Name))
+        {
+            message = "Project and name are required.";
+            return;
+        }
+
+        if (editing.Id == 0)
+            await SubProjectService.CreateAsync(editing);
+        else
+            await SubProjectService.UpdateAsync(editing);
+
+        editing = null;
+        message = "Sub-project saved.";
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        await SubProjectService.DeleteAsync(id);
+        message = "Sub-project deleted.";
+        await ReloadAsync();
+    }
+}

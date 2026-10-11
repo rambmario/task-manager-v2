@@ -25,13 +25,19 @@ Legacy desktop app: [rambmario/task-manager](https://github.com/rambmario/task-m
 
 ## Features
 
-- **Dashboard** — open / overdue / high-priority tasks, logged hours, open improvements
-- **Tasks** — CRUD, filters, server-side paging, overdue highlighting, Excel export
+- **Dashboard** — KPI cards that deep-link into filtered task lists, plus a **Next up** board (overdue → priority → due date)
+- **Tasks**
+  - CRUD with **assignee** (legacy `id_usuario_asignado`)
+  - Filters: search, company, status, assignee / My tasks, open, high priority, overdue
+  - **Sortable columns**, **Clear filters**, search with **Enter**
+  - Server-side paging, overdue highlighting, Excel export
 - **Time tracking** — log hours against tasks and refresh actual hours
 - **Improvements (CAPA)** — cause, corrective action, closure cost, action notes
-- **Catalogs** — companies and projects
+- **Catalogs** — companies, projects and sub-projects
 
 ## Quick start
+
+Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/download)
 
 ```bash
 git clone https://github.com/rambmario/task-manager-v2.git
@@ -39,16 +45,23 @@ cd task-manager-v2
 dotnet run --project src/TaskManager.Web
 ```
 
-Open the HTTPS URL from the console (see `launchSettings.json`).
+Open the HTTPS/HTTP URL from the console (see `launchSettings.json`, typically `https://localhost:7108`).
+
+```bash
+dotnet test
+```
 
 ### Demo login
 
-```
-Email:    admin@demo.local
-Password: Demo123!
-```
+Password for all demo users: `Demo123!`
 
-The first run applies migrations and seeds sample companies, projects, tasks, time entries and one improvement.
+| Email | Role |
+|-------|------|
+| `admin@demo.local` | Admin |
+| `pm@demo.local` | Member (PM) |
+| `dev@demo.local` | Member (Developer) |
+
+The first run (or when the demo task count is low) applies migrations and seeds a rich sample dataset: 5 companies, 9 projects, 11 sub-projects, ~30 tasks, time entries and 5 CAPA-style improvements.
 
 ## Solution layout
 
@@ -60,6 +73,7 @@ src/
       Tasks/
       TimeTracking/
       Improvements/
+      Identity/             # user directory for assignee pickers
     Platform/               # paging helpers
     Data/                   # DbContext, Identity user, seed, migrations
   TaskManager.Web/          # Blazor UI + Identity UI (thin host)

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaskManager.App.Data;
 using TaskManager.App.Features.Catalogs;
+using TaskManager.App.Features.Identity;
 using TaskManager.App.Features.Improvements;
 using TaskManager.App.Features.Tasks;
 using TaskManager.App.Features.TimeTracking;
@@ -17,6 +18,8 @@ public static class DependencyInjection
 
         services.AddScoped<CompanyService>();
         services.AddScoped<ProjectService>();
+        services.AddScoped<SubProjectService>();
+        services.AddScoped<UserDirectoryService>();
         services.AddScoped<TaskService>();
         services.AddScoped<TimeEntryService>();
         services.AddScoped<ImprovementService>();
